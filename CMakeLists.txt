@@ -3,7 +3,6 @@ project(digitazionpp VERSION 0.0.1)
 
 find_package(ROOT REQUIRED)
 find_package(OpenCV CONFIG REQUIRED)
-find_package(TBB CONFIG REQUIRED)
 
 add_compile_options(-Wall -Wextra -O3)
 
@@ -21,14 +20,12 @@ elseif(ROOT_CXX STREQUAL "17")
 else()
     message(FATAL_ERROR "ROOT compiled with non-supported C++ version. c++17 and 20 are supported")
 endif()
-
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(${ROOT_USE_FILE})
 include_directories(${ROOT_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} $ENV{ROOTANASYS}/include)
 
 #Debug comments
-#message(ROOT_CXX=${ROOT_CXX})
 #message(ROOTANASYS="$ENV{ROOTANASYS}/include")
 #get_cmake_property(_variableNames VARIABLES)
 #foreach (_variableName ${_variableNames})
@@ -61,4 +58,4 @@ target_link_libraries(cygnolib PUBLIC rootana z)
 
 
 add_executable(digitazionpp "${PROJECT_SOURCE_DIR}/MC_data_new.cxx")
-target_link_libraries(digitazionpp PUBLIC ${ROOT_LIBRARIES} ${OpenCV_LIBS} s3 curl rootana cygnolib z opencv_imgcodecs opencv_core tbb)
+target_link_libraries(digitazionpp PUBLIC ${ROOT_LIBRARIES} ${OpenCV_LIBS} s3 curl rootana cygnolib z opencv_imgcodecs opencv_core)

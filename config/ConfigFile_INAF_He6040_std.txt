@@ -5,27 +5,32 @@
 'diff_const_sigma0L'    : 0.0676,     # diffusion constant [mm]^2
 'diff_coeff_L'          : 0.00978,    # diffusion parameter [mm/sqrt(cm)]^2 for 1 kV
 
-
-'x_dim'			: 346,       # first dimension of the detector
-'y_dim'			: 346,       # second dimension of the detector
+'x_dim'			: 130,       # first dimension of the detector
+'y_dim'			: 130,       # second dimension of the detector
 'x_pix'			: 2304,      # number of pixels in the first dimension
 'y_pix'			: 2304,      # number of pixels in the second dimension
 
 'z_vox_dim'             : 0.1,       # z voxel size in [mm]
 'zcloud'		: 20,        # z dimension of the electron cloud in [mm]
-'x_vox_min'		: 950,       # x voxel min of the electron cloud (voxels in the GEM plane correspond to pixels)
-'x_vox_max'		: 1350,      # x voxel max of the electron cloud (voxels in the GEM plane correspond to pixels)
-'y_vox_min'		: 950,       # y voxel min of the electron cloud (voxels in the GEM plane correspond to pixels)
-'y_vox_max'		: 1350,      # y voxel max of the electron cloud (voxels in the GEM plane correspond to pixels)
+'x_vox_min'		: 0,#950,       # x voxel min of the electron cloud (voxels in the GEM plane correspond to pixels)
+'x_vox_max'		: 2304,#1350,      # x voxel max of the electron cloud (voxels in the GEM plane correspond to pixels)
+'y_vox_min'		: 0,#950,       # y voxel min of the electron cloud (voxels in the GEM plane correspond to pixels)
+'y_vox_max'		: 2304,#1350,      # y voxel max of the electron cloud (voxels in the GEM plane correspond to pixels)
+
+#la tua x == verticale (y)
+#la tua y == direzione di drift (z)
+#la tua z == orizzontale (x)
+# z offsets capiti
+
 
 #FIXME
-'x_offset'              : 0.,        # x offset [mm] (to center the image along x) 
-'y_offset'              : 0.,        # y offset [mm] (to center the image along y)
-'z_offset'              : -240.,     # z offset (along drift direction - corresponds to coordinate of the farthest point from the GEM)
-'z_gem'                 : 240.,        # GEM z coordinate [mm] (drift distance will be (position in simulation along drift)+(z_offset)-(z_gem) )
+'x_offset'              : 51.4,        # x offset [mm] (to center the image along x) - ditanza del centro della field cage dall'origine (nella mia z parallela alle GEM)
+'y_offset'              : 0.,        # y offset [mm] (to center the image along y) - dovrebbe essere centrato
+'z_offset'              : -47/2.,     # z offset (along drift direction - corresponds to coordinate of the farthest point from the GEM) - z distance of the cathode wrt to origin of the simulation
+'z_gem'                 : 52.5-47/2.,        # GEM z coordinate [mm] (drift distance will be (position in simulation along drift)+(z_offset)-(z_gem) ) - z distance of the GEM1 wrt to origin of the simulation - DRIFT-GEM1 distance minus half of field cage
 'tag'			: 'Data',    # Set 'Data' to download a real pedestal run 
-'noiserun'              : 58695,      # pedestal run to add as background
-'ped_cloud_dir'         : 'LNGS',    # directory inside the cloud bucket where the pedestal run is located
+'noiserun'              : 15070,      # pedestal run to add as background
+'ped_cloud_dir'         : 'MAN',    # directory inside the cloud bucket where the pedestal run is located
 'bckg_path'		: '../tmp/', # set path to pedestal run, or leave it black if you want to download it
 'ped_rand'		: True,      # if true, will extract randomly a picture from the background root file (used for run2 MC comparison)
 'start_event'		: 0,         # index of the first event to digitize
@@ -39,10 +44,10 @@
 
 # saturation parameters
 'saturation'            : True,      # if 'True' saturation effect is applied on GEM3    
-'x_vox_dim'             : 0.1501736, # x voxel size in [mm]
-'y_vox_dim'             : 0.1501736, # y voxel size in [mm]
+'x_vox_dim'             : 0.057, # x voxel size in [mm]
+'y_vox_dim'             : 0.057, # y voxel size in [mm]
 'z_vox_dim'             : 0.1,       # z voxel size in [mm]
-'A'                     : 1.52,        # free parameter (total scale factor MC/data)
+'A'                     : 1.473,        # free parameter (total scale factor MC/data)
 'beta'                  : 1.0e-5,    # saturation parameter   
 
 # optical parameters
@@ -50,13 +55,13 @@
 'counts_per_photon'     : 2.,        # sensor conversion factor counts/photons
 'sensor_size'           : 14.976,    # sensor dimension [mm] ORCA Fusion
 'camera_aperture'       : 0.95,
-'exposure_time_effect'  : False,      # if True simulates the effect of tracks cut by the sensor being not fully exposed
-'exposure_time'         : 300,       # exposure time in milliseconds
+'exposure_time_effect'  : False,     # if True simulates the effect of tracks cut by the sensor being not fully exposed
+'exposure_time'         : 220,       # exposure time in milliseconds
 'readout_time'          : 184.4,     # readout time of the camera in ms (184.4ms for ultra quiet scan)
 
 'bckg'                  : True,      # if 'True' background is added
 'NR'                    : False,     # 'True' for NR digitization, 'False' for ER
-'SRIM'                  : True,      # 'True' for SRIM NR simulations
+'SRIM'                  : False,      # 'True' for SRIM NR simulations
 'NR_list'               : 'NRlist_AmBeISO_LIME_neutrons_50cmPE_10cmCu_NOPb_10umStep', # Name of the SRIM MC NR_list file   
 'GEANT4isotopes'        : False,      # specify if you are digitizing tracks from radioactive isotope GEANT4 simulations
 'rootfiles'             : True,      # choose input type: True for G4 root iput, False for SRIM txt files
@@ -68,5 +73,5 @@
 'absorption_l'          : 1400.,     # absorption lenght in [mm]
 
 'Vignetting'		: True,      #Add vignetting effect according to the MAP
-'Vig_Map'		: 'vignette_run04117.root',
+'Vig_Map'		: 'vign_MANGO.root',
 }

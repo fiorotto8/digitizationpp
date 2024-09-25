@@ -38,4 +38,5 @@ OutDir
 tmp
 doc/html
 doc/latex
-#test
+*.root
+digitizationpp.code-workspace

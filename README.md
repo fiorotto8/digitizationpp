@@ -9,7 +9,6 @@ Digitization code in C++
 * ROOT [compiled with the C++17 or C++20 standard]
 * ROOTANA [https://bitbucket.org/tmidas/rootana/src/master/]
 * OPENCV [https://docs.opencv.org/4.x/d7/d9f/tutorial_linux_install.html]
-* oneAPI TBB [https://github.com/oneapi-src/oneTBB] (tested with release 2021.12.0 linux)
 
 Before compiling, set the variables ROOTANASYS and OPENCVSYS in your environment:
 
@@ -20,28 +19,6 @@ Before compiling, set the variables ROOTANASYS and OPENCVSYS in your environment
 In the file you use to call the source of thisroot.sh (your setup file or .bashrc), add after the source of the thisroot.sh the line:
 
 `export CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH:$OPENCVSYS`
-
-### Install TBB
-One can install following the procedure explained in [here](https://github.com/oneapi-src/oneTBB/blob/master/INSTALL.md).
-
-Alternatively, one can download the release desired (tested with 2021.12.0, but 2021.13.0 now available):
-
-`wget https://github.com/oneapi-src/oneTBB/releases/download/v2021.12.0/oneapi-tbb-2021.12.0-lin.tgz`
-or by directly downloading the precompiled oneapi-tbb version from [Release](https://github.com/oneapi-src/oneTBB/releases).
-
-Then untar:
-
-`tar zxf oneapi-tbb-2021.12.0-lin.tgz`
-
-It is highly recommended to add to the environment the following variable:
-
-`export TBBROOT="<path_to_tbb_folder>"`
-
-In order to enable oneapi TBB the user needs to source it:
-
-`source ${TBBROOT}/env/vars.sh`
-
-Be careful that this last line can mess the path of the C++ compiler and require TBB to be always present even when not required. Thus, it is strongly suggested not to add it to bashrc, but to use it only when tbb will be used.
 
 ## Installation
 
@@ -76,8 +53,6 @@ If not existing, the Outdir will be created. The -I and -O options can be droppp
 `<path_to_digitizationpp-dir>/input/`
 and the outdir will be created in 
 `<path_to_digitizationpp-dir>/OutDir/`
-
-Depending on the system, the outdir folder creation may fail. In that case create the output directory.
 
 # Example
 From `<path_to_digitizationpp-dir>`
