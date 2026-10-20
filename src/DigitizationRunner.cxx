@@ -1286,7 +1286,7 @@ void DigitizationRunner::generateHistogramsFromDigi() {
             AddBckg(background);
 
             // TH2I image creation
-            TH2I final_image(Form("pic_run%d_ev%d", runCount, entry), "",
+            TH2I final_image(Form("pic_run%d_ev%d", runNumber, entry), "",
                              x_pix, -0.5, x_pix -0.5,
                              y_pix, -0.5, y_pix -0.5);
             for(int idx = 0; idx < nRedpix; idx++) {
@@ -1300,7 +1300,7 @@ void DigitizationRunner::generateHistogramsFromDigi() {
             for(int xx = 0; xx < x_pix; xx++) {
                 for(int yy = 0; yy < y_pix; yy++) {
                     int flatbin = final_image.GetBin(xx + 1, yy + 1);
-                    final_image.AddBinContent(flatbin, background[xx][yy]);
+                    final_image.AddBinContent(flatbin, static_cast<double>(background[xx][yy]));
                 }
             }
 
