@@ -296,10 +296,10 @@ void DigitizationRunner::fillVigmap(TH2F& VignMap) {
     return;
 }
 
-bool DigitizationRunner::is_NR(vector<int> pdgID_hits, int pdg) {
+int DigitizationRunner::is_NR(vector<int> pdgID_hits, int pdg) {
     int ret = -999;
     for(unsigned int i = 0; i<pdgID_hits.size(); i++) {
-        if(pdgID_hits[i] > pdg) {
+        if(pdgID_hits[i] == 2212 || pdgID_hits[i] > pdg) {
             ret = pdgID_hits[i];
             break;
         }
