@@ -114,7 +114,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
             if((NR_flag==true && energy>100)||(NR_flag==false && energy>500)) {
                 
                 int WID = config.getInt("WID");
-                int nparts = 1 + x_hits_tr.size()/WID;
+                int nparts = (x_hits_tr.size() + WID - 1)/WID;
                 for(int part = 0; part < nparts; part++) {
                     cout<<"   part "<<part<<"/"<<nparts<<"..."<<endl;
                     int hit_tr_idx = part*WID;
@@ -328,7 +328,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
                     
 
                     int WID = config.getInt("WID");
-                    int nparts = 1 + x_hits_tr.size()/WID;
+                    int nparts = (x_hits_tr.size() + WID - 1)/WID;
                     
                     //cout<<"DEBUG "<<hc.size()<<","<<hc[0].size()<<","<<hc[0][0].size()<<endl<<flush;
                     cout<<"Amplifying voxel region z=["<<split_vals[i]<<","<<split_vals[i+1]<<"] "<<i<<"/"<<split_vals.size()-1-1<<endl;
@@ -535,16 +535,18 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
         //cout<<"c   = ("<<center[0]<<","<<center[1]<<")"<<endl;
         
         // cout<<"Center: "<<center[0]<<", "<<center[1]<<endl;
-        int x_start = max(0, center[0] -    (int)hout.size()/2);
-        int y_start = max(0, center[1] - (int)hout[0].size()/2);
-        int x_end   = min(x_pix*xy_vox_scale, x_start + (int)hout.size());
-        int y_end   = min(y_pix*xy_vox_scale, y_start + (int)hout[0].size());
+        const int x_origin = center[0] - (int)hout.size()/2;
+        const int y_origin = center[1] - (int)hout[0].size()/2;
+        int x_start = max(0, x_origin);
+        int y_start = max(0, y_origin);
+        int x_end   = min(x_pix*xy_vox_scale, x_origin + (int)hout.size());
+        int y_end   = min(y_pix*xy_vox_scale, y_origin + (int)hout[0].size());
         // cout<<"PADDING ["<<x_start<<":"<<x_end<<","<<y_start<<":"<<y_end<<"]"<<endl;
 
         // Adding voxels to the same pixel before applying camera response
         for(int xx=x_start; xx<x_end; xx++){
             for(int yy=y_start; yy<y_end; yy++){
-                image[xx/xy_vox_scale][yy/xy_vox_scale]+=hout[xx-x_start][yy-y_start];
+                image[xx/xy_vox_scale][yy/xy_vox_scale]+=hout[xx-x_origin][yy-y_origin];
             }
         }
         

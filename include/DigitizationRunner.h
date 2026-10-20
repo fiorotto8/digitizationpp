@@ -134,9 +134,9 @@ private:
       * @brief Determines whether an event is a nuclear recoil (NR).
       * @param[in] pdgID_hits List of PDG codes for all hits.
       * @param[in] pdg PDG code to compare against.
-      * @return True if NR, false otherwise.
+      * @return PDG code of the first matching recoil, or -999 if none.
       */
-     bool is_NR(std::vector<int> pdgID_hits, int pdg);
+     int is_NR(std::vector<int> pdgID_hits, int pdg);
  
      /**
       * @brief Adds pedestal to an image, according the configfile options.
