@@ -31,6 +31,9 @@
 *.out
 *.app
 
+*.gas
+*.mid.gz
+
 build-dir
 debug
 OutDir
