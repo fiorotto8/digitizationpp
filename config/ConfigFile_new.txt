@@ -33,7 +33,20 @@
 'x_extra'               : 0.,        # Extra distance in x (of digitization ref. frame) from center of the image [mm]
 'y_extra'               : 0.,        # Extra distance in y (of digitization ref. frame) from center of the image [mm]
 'z_extra'               : 0.,        # Extra distance from GEM in z coordinate [mm] (drift distance will be (position in simulation along drift)+(z_offset)+(z_extra) )
-'randZ_range'           : 0.,        # Track z coordinate range [mm]. Tracks will be generated uniformly between 'z_hit+randZ_range/2' and 'z_hit-randZ_range/2'
+# Uniform rigid XYZ shifts [mm], applied after coordinate mapping/offsets.
+# Bounds are shifts, not absolute positions; equal bounds give a fixed shift.
+# Supply both bounds per axis. Explicit bounds override legacy rand*_range.
+'randX_min'             : 0.,
+'randX_max'             : 0.,
+'randY_min'             : 0.,
+'randY_max'             : 0.,
+'randZ_min'             : 0.,
+'randZ_max'             : 0.,
+# Example for a source mapped to (0,0,250) mm in one CYGNO04 camera:
+# X [-250,250), Y [-140.625,140.625), Z [-250,250) shifts place its start
+# across 500 x 281.25 mm and 0..500 mm drift (also set matching geometry).
+# Placement does not enforce full-track containment; XY signal is clipped
+# at camera edges. Sampled shifts are saved as placement_dx_mm/dy_mm/dz_mm.
 
 # Camera parameters
 'Camera_type'		: 'Fusion',   # Possibilities: Fusion, Quest1, Quest2
@@ -71,13 +84,13 @@
 'rootfiles'             : True,      # choose input type: True for G4 root iput, False for segmentation violation (at the moment)
 'events'                : -1,         # number of events to be processed, -1 = max allowed
 'donotremove'           : True,      # Remove or not the file from the tmp folder
-'fixed_seed'            : False,     # If 'True' the seed of random distributions is set to 10 (for debugging purposes)
+'fixed_seed'            : False,     # True uses seed 3 for reproducible debugging; separate jobs then share the seed.
 'WID'                   : 5,         # Integer parameter: the smaller WID is, the smaller the ram usage but the higher the time consumption
 'Parallel_threads'      : 8,         # Integer parameter: number of threads to use in parallel calculation
 'queue'                 : 0,	     # If you are sending to the CNAF queue write 1. The outputfiles will be forced to be written in local folder to be sent to cloud
-'redpix_output'         : False,      # True if you want the output format being only the redpixes instead of images and redpixes. NOTE: this will change the output namefile to "digi_RunXXXXX.root"
+'redpix_output'         : True,       # Signal-only sparse pixels + event_info, no camera images/pedestal noise; output digi_RunXXXXX.root. False saves images.
 
-'save_mc_first3_hits'   : True,       #If True saves the position of the first 3 GEANT hits
+'save_mc_first3_hits'   : True,       # Save first 3 original GEANT hits; generated direction must be joined from MC truth.
 
 ## PMT side
 # PMT simulation parameters
