@@ -114,7 +114,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
             if((NR_flag==true && energy>100)||(NR_flag==false && energy>500)) {
                 
                 int WID = config.getInt("WID");
-                int nparts = 1 + x_hits_tr.size()/WID;
+                int nparts = (x_hits_tr.size() + WID - 1)/WID;
                 for(int part = 0; part < nparts; part++) {
                     cout<<"   part "<<part<<"/"<<nparts<<"..."<<endl;
                     int hit_tr_idx = part*WID;
@@ -328,7 +328,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
                     
 
                     int WID = config.getInt("WID");
-                    int nparts = 1 + x_hits_tr.size()/WID;
+                    int nparts = (x_hits_tr.size() + WID - 1)/WID;
                     
                     //cout<<"DEBUG "<<hc.size()<<","<<hc[0].size()<<","<<hc[0][0].size()<<endl<<flush;
                     cout<<"Amplifying voxel region z=["<<split_vals[i]<<","<<split_vals[i+1]<<"] "<<i<<"/"<<split_vals.size()-1-1<<endl;
