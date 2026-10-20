@@ -123,6 +123,17 @@ Here's an image showing this RF:
 
 This means that **the user must specify the relative orientation of the axes and the relative origin offset between the input MC reference frame and the digitization reference frame**. This is realized by means of the parameters `MC_xaxis`, `MC_yaxis`, `MC_zaxis`, and `x_offset`, `y_offset`, `z_offset`.
 
+Set `randX_min`/`randX_max`, `randY_min`/`randY_max` and
+`randZ_min`/`randZ_max` in mm. Each event receives one uniform translation per
+axis in `[min, max)`, applied to all hits after coordinate mapping. Bounds are
+**shifts**, not absolute positions: a source mapped to Z=250 mm with Z bounds
+[-250, 250) is placed in [0, 500) mm. Equal bounds give a fixed shift.
+Both bounds must be supplied together, finite, and ordered. Explicit bounds
+override `rand*_range`; the older symmetric `[-range/2, range/2)` option remains
+supported, and absent bounds/range disable that axis. Track shape and direction
+are preserved. Sampled shifts are saved in `event_info` as `placement_dx_mm`,
+`placement_dy_mm` and `placement_dz_mm`.
+
 # Example
 From `<path_to_digitizationpp-dir>`
 

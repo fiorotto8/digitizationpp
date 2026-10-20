@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <limits.h>
 #include <utility>
+#include <stdexcept>
 #include <regex>
 #include <algorithm>
 #include "TRandom3.h"
@@ -611,6 +612,9 @@ void DigitizationRunner::processRootFiles() {
             Float_t y_max = -1;
             Float_t z_min = -1;
             Float_t z_max = -1;
+            Double_t placement_dx_mm = 0;
+            Double_t placement_dy_mm = 0;
+            Double_t placement_dz_mm = 0;
             Float_t px = -1;
             Float_t py = -1;
             Float_t pz = -1;
@@ -679,6 +683,9 @@ void DigitizationRunner::processRootFiles() {
             outtree->Branch("y_max", &y_max, "y_max/F");
             outtree->Branch("z_min", &z_min, "z_min/F");
             outtree->Branch("z_max", &z_max, "z_max/F");
+            outtree->Branch("placement_dx_mm", &placement_dx_mm, "placement_dx_mm/D");
+            outtree->Branch("placement_dy_mm", &placement_dy_mm, "placement_dy_mm/D");
+            outtree->Branch("placement_dz_mm", &placement_dz_mm, "placement_dz_mm/D");
             outtree->Branch("N_photons", &N_photons, "N_photons/I");
             outtree->Branch("N_primaries_reaching_GEMs", &N_primaries_reaching_GEMs, "N_primaries_reaching_GEMs/I");
             outtree->Branch("px", &px, "px/F");
@@ -827,6 +834,7 @@ void DigitizationRunner::processRootFiles() {
                 py    = 0;
                 pz    = 0;
                 nhits_og = numhits;
+                placement_dx_mm = placement_dy_mm = placement_dz_mm = 0;
     
     
                 vector<vector<int>> background(x_pix,
@@ -944,15 +952,29 @@ void DigitizationRunner::processRootFiles() {
                     energy_hits = (*energyDep_hits);
                 }
                     
-                // Add random Z to tracks
-                if (config.getDouble("randZ_range") != 0) {
-                    double rand = (gRandom->Uniform() - 0.5) * config.getDouble("randZ_range");
-                    //DEBUG
-                    //cout<<"rand = "<<rand<<endl;
-                    transform(z_hits_tr.begin(), z_hits_tr.end(), z_hits_tr.begin(),
-                                [&] (double a) {return a + rand;}
-                                );
-                    
+                // Random placement: one rigid translation per event, in digitization mm.
+                // Keep Z first to preserve the random sequence of existing Z-only configs.
+                map<char, double*> placement_shifts = {
+                    {'x', &placement_dx_mm}, {'y', &placement_dy_mm}, {'z', &placement_dz_mm}
+                };
+                for (char axis : {'z', 'x', 'y'}) {
+                    const string key = string("rand") + char(axis - 'a' + 'A');
+                    const bool has_min = !config.get(key + "_min").empty();
+                    const bool has_max = !config.get(key + "_max").empty();
+                    if (has_min != has_max)
+                        throw std::invalid_argument(key + " requires both _min and _max (mm)");
+                    const double range = has_min || config.get(key + "_range").empty() ? 0. : config.getDouble(key + "_range");
+                    const double low = has_min ? config.getDouble(key + "_min") : -range/2.;
+                    const double high = has_max ? config.getDouble(key + "_max") : range/2.;
+                    if (!std::isfinite(low) || !std::isfinite(high) || low > high)
+                        throw std::invalid_argument(key + " bounds must be finite with min <= max (mm)");
+                    const double shift = low == high ? low : has_min
+                        ? low + gRandom->Uniform() * (high - low)
+                        : (gRandom->Uniform() - 0.5) * range;
+                    *placement_shifts[axis] = shift;
+                    auto& hits = *output_axes[axis];
+                    transform(hits.begin(), hits.end(), hits.begin(),
+                              [shift](double a) { return a + shift; });
                 }
                 
                 //Compute length and extremes of the complete track
