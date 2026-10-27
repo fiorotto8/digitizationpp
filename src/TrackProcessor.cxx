@@ -754,7 +754,7 @@ vector<double> TrackProcessor::NelGEM2(const vector<double>& energyDep, const ve
     // Check if hits with negative drift length
     vector<bool> negatives(drift_l.size());
     transform(drift_l.begin(), drift_l.end(), negatives.begin(),
-              [](int x) { return x < 0; });
+              [](double x) { return x < 0; });
     if (any_of(negatives.begin(), negatives.end(), [](bool b) { return b; })) {
         std::cerr << "Warning: TrackProcessor::NelGEM2: track contains hits with negative drift length."<<std::endl;
         return {};  // empty vector signals "skip"
