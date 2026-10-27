@@ -22,6 +22,7 @@
 'y_dim'			: 346,       # second dimension of the detector
 
 # Geometry
+'drift_length'         : 500.,      # Active Z interval [0, drift_length] in mm; omit for no upper cut.
 'MC_xaxis'              : '-z',      # Digitization axis corrisponding to input x - axis (See README to check digitization ref. frame)
 'MC_yaxis'              : '-y',      # Digitization axis corrisponding to input y - axis (See README to check digitization ref. frame)
 'MC_zaxis'              : '-x',      # Digitization axis corrisponding to input z - axis (See README to check digitization ref. frame)

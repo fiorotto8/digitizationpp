@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits.h>
+#include <limits>
 #include <utility>
 #include <stdexcept>
 #include <regex>
@@ -1004,9 +1005,13 @@ void DigitizationRunner::processRootFiles() {
                 std::vector<PMTVoxel> pmt_voxels; 
 
                 // Select response deposits without changing the complete-track metadata.
+                const double drift_length = config.get("drift_length").empty()
+                    ? std::numeric_limits<double>::max() : config.getDouble("drift_length");
+                if (!std::isfinite(drift_length) || drift_length <= 0.)
+                    throw std::invalid_argument("drift_length must be finite and positive (mm)");
                 vector<double> x_active, y_active, z_active, energy_active;
                 for (size_t i = 0; i < z_hits_tr.size(); ++i) {
-                    if (z_hits_tr[i] >= 0.) {
+                    if (z_hits_tr[i] >= 0. && z_hits_tr[i] <= drift_length) {
                         x_active.push_back(x_hits_tr[i]);
                         y_active.push_back(y_hits_tr[i]);
                         z_active.push_back(z_hits_tr[i]);
