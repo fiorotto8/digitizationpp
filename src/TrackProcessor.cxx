@@ -50,7 +50,10 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
     vector<float> S3D_z;
     
     // if there are no electrons on GEM3, just use empty image
-    if (x_hits_tr.size() == 0) return true;
+    if (x_hits_tr.size() == 0) {
+        N_primaries_reaching_GEMs = 0;
+        return true;
+    }
     // if there are electrons on GEM3, apply saturation effect
     else {
         double OFF = 15;
