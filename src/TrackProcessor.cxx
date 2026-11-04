@@ -50,7 +50,10 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
     vector<float> S3D_z;
     
     // if there are no electrons on GEM3, just use empty image
-    if (x_hits_tr.size() == 0) return true;
+    if (x_hits_tr.size() == 0) {
+        N_primaries_reaching_GEMs = 0;
+        return true;
+    }
     // if there are electrons on GEM3, apply saturation effect
     else {
         double OFF = 15;
@@ -754,7 +757,7 @@ vector<double> TrackProcessor::NelGEM2(const vector<double>& energyDep, const ve
     // Check if hits with negative drift length
     vector<bool> negatives(drift_l.size());
     transform(drift_l.begin(), drift_l.end(), negatives.begin(),
-              [](int x) { return x < 0; });
+              [](double x) { return x < 0; });
     if (any_of(negatives.begin(), negatives.end(), [](bool b) { return b; })) {
         std::cerr << "Warning: TrackProcessor::NelGEM2: track contains hits with negative drift length."<<std::endl;
         return {};  // empty vector signals "skip"
