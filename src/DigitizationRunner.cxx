@@ -21,7 +21,6 @@
 #include <stdexcept>
 #include <regex>
 #include <algorithm>
-#include <random>
 #include "TRandom3.h"
 #include "TFile.h"
 #include "TTree.h"
@@ -187,10 +186,7 @@ int DigitizationRunner::extractDigiRunNumber(const std::string& filename) {
 }
 
 void DigitizationRunner::setSeed(int seed) {
-    unsigned int actualSeed = config.getBool("fixed_seed") ? seed : std::random_device{}();
-    if (actualSeed == 0) actualSeed = 1;
-    gRandom->SetSeed(actualSeed);
-    cout << "Random seed: " << actualSeed << endl;
+    if(config.getBool("fixed_seed")) gRandom->SetSeed(seed);
     return;
 }
 
