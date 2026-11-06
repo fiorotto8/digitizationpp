@@ -44,6 +44,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
                                            vector<vector<double>>& image,
                                            vector<PMTVoxel>& pmt_voxels)
 {
+    N_primaries_reaching_GEMs = 0;
     // vectorized smearing
     vector<float> S3D_x;
     vector<float> S3D_y;
@@ -51,7 +52,6 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
     
     // if there are no electrons on GEM3, just use empty image
     if (x_hits_tr.size() == 0) {
-        N_primaries_reaching_GEMs = 0;
         return true;
     }
     // if there are electrons on GEM3, apply saturation effect
@@ -502,7 +502,8 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
                     cout<<"Sparse-ness of voxel region: "<< not_empty * 100./LL<<" %"<<endl;
                 }
             }
-            
+            // Separate Z slabs resample the primaries; no unique event total exists.
+            if (split_vals.size() > 2) N_primaries_reaching_GEMs = -1;
         }
 
         cout<<"size = "<<size_tot<<endl;
@@ -773,7 +774,7 @@ vector<double> TrackProcessor::NelGEM2(const vector<double>& energyDep, const ve
         return gRandom->Poisson(a);
     });
 
-    N_primaries_reaching_GEMs = std::accumulate(n_ioniz_el.begin(), n_ioniz_el.end(), 0.0);
+    N_primaries_reaching_GEMs += std::accumulate(n_ioniz_el.begin(), n_ioniz_el.end(), 0.0);
     std::cout << "Number of primaries reaching GEMs: " << N_primaries_reaching_GEMs << std::endl;
     
     
