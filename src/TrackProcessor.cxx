@@ -12,10 +12,6 @@
 #include "Utils.h"
 #include "Globals.h"
 #include <cmath>
-#include <array>
-#include <cstdint>
-#include <cstdio>
-#include <memory>
 #include <chrono>
 #include <numeric>
 #include <random>
@@ -48,7 +44,6 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
                                            vector<vector<double>>& image,
                                            vector<PMTVoxel>& pmt_voxels)
 {
-    N_primaries_reaching_GEMs = 0;
     // vectorized smearing
     vector<float> S3D_x;
     vector<float> S3D_y;
@@ -56,6 +51,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
     
     // if there are no electrons on GEM3, just use empty image
     if (x_hits_tr.size() == 0) {
+        N_primaries_reaching_GEMs = 0;
         return true;
     }
     // if there are electrons on GEM3, apply saturation effect
@@ -69,6 +65,9 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
         double ymax = (*max_element(y_hits_tr.begin(), y_hits_tr.end()))+OFF;
         double zmin = (*min_element(z_hits_tr.begin(), z_hits_tr.end()))-OFFz;
         double zmax = (*max_element(z_hits_tr.begin(), z_hits_tr.end()))+OFFz;
+        
+        double deltaX = abs(xmax-xmin);
+        double deltaY = abs(ymax-ymin);
         
         // FIXME: create a function for the saturation loop
         // FIXME: find best value of maxvolume. 1e8 might not me the best one
@@ -102,9 +101,9 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
 
         //Timing and debug variables
         long int size_tot=0;
-        std::chrono::duration<double> dur_smear{};
-        std::chrono::duration<double> dur_criti{};
-        std::chrono::duration<double> dur_ampli{};
+        std::chrono::duration<double> dur_smear;
+        std::chrono::duration<double> dur_criti;
+        std::chrono::duration<double> dur_ampli;
         
         vector<vector<int>> hout(x_n_bin, vector<int>(y_n_bin, 0.0));
         
@@ -152,7 +151,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
                     // Run the default parallelism
                     tbb::task_arena arena(num_threads);
                     arena.execute([&]{
-                        parallel_for(tbb::blocked_range<size_t>(0, indices.size(),max<size_t>(1, indices.size()/num_threads)),
+                        parallel_for(tbb::blocked_range<size_t>(0, indices.size(),indices.size()/num_threads),
                             [&] (auto &range) {
                             map<long int, int> paralmap;
                             //cout << "Thread ID: " << this_thread::get_id() << endl;
@@ -241,7 +240,7 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
                 // Run the default parallelism
                 tbb::task_arena arena(num_threads);
                 arena.execute([&]{
-                    parallel_for(tbb::blocked_range<size_t>(0, indices.size(),max<size_t>(1, indices.size()/num_threads)),
+                    parallel_for(tbb::blocked_range<size_t>(0, indices.size(),indices.size()/num_threads),
                         [&] (auto &range) {
                         map<long int, int> paralmap;
                         //cout << "Thread ID: " << this_thread::get_id() << endl;
@@ -309,131 +308,201 @@ bool TrackProcessor::computeWithSaturation(const vector<double>& x_hits_tr,
             }
 
         } else {
-            // Slabs partition one global voxel grid. Keep the dense histogram
-            // within its voxel budget, including the final (possibly short) slab.
-            const long int xy_bins = x_n_bin * y_n_bin;
-            const long int slab_depth = min(z_n_bin_MAX, max_3Dhisto_volume / xy_bins);
-            auto fail = [&](const char* message) {
-                std::cerr << "Warning: TrackProcessor::computeWithSaturation: " << message << std::endl;
-                N_primaries_reaching_GEMs = -1;
-                return false;
-            };
-            if (slab_depth < 1) return fail("one XY voxel plane exceeds the histogram budget.");
-            const bool multiple_slabs = slab_depth < z_n_bin_MAX;
+            double deltaZ=max(2*config.getDouble("z_vox_dim"),
+                              config.getDouble("z_vox_dim") * max_3Dhisto_volume /
+                                (deltaX / xbin_dim) /
+                                (deltaY / ybin_dim)
+                              );
+            
+            vector<double> split_vals = Utils::arange(zmin, zmax, deltaZ);
+            if(split_vals[split_vals.size()-1] < zmax) split_vals.push_back(zmax+deltaZ/10.);
+        
+        
+        
+            for(unsigned int i=0; i < split_vals.size()-1; i++) {
+                
+                z_n_bin  = max(2.0, Utils::roundUpToEven((split_vals[i+1]-split_vals[i])/zbin_dim));
+                
+                vector<vector<vector<double>>> hc(x_n_bin+1,
+                                                  vector<vector<double>>(y_n_bin+1,
+                                                                         vector<double>(z_n_bin+1, 0.0)));
+                
+                if((NR_flag==true && energy>100)||(NR_flag==false && energy>500)) {
+                    
 
-            // Generate each hit batch once. For multiple slabs, spill global
-            // voxel IDs instead of retaining a full-event electron cloud in RAM.
-            // Each slab scans this file without drawing any new random numbers.
-            // The file is removed automatically on close, including error paths.
-            auto close_spool = [](FILE* file) { std::fclose(file); };
-            std::unique_ptr<FILE, decltype(close_spool)> spool(nullptr, close_spool);
-            if (multiple_slabs) {
-                spool.reset(std::tmpfile());
-                if (!spool) return fail("cannot create temporary slab storage.");
-            }
-            vector<double> hc;
-            if (!multiple_slabs) hc.assign(xy_bins * slab_depth, 0.0);
-            std::array<std::uint64_t, 8192> buffer;
-            size_t buffered = 0;
-            auto flush_buffer = [&]() {
-                if (std::fwrite(buffer.data(), sizeof(buffer[0]), buffered, spool.get()) != buffered)
-                    return false;
-                buffered = 0;
-                return true;
-            };
-
-            const bool batch_hits = (NR_flag && energy > 100) || (!NR_flag && energy > 500);
-            const int WID = batch_hits ? config.getInt("WID") : 1;
-            if (WID <= 0) return fail("WID must be positive.");
-            const size_t batch_size = batch_hits ? static_cast<size_t>(WID) : x_hits_tr.size();
-            for (size_t first = 0; first < x_hits_tr.size(); first += batch_size) {
-                const size_t last = min(first + batch_size, x_hits_tr.size());
-                vector<double> x_batch(x_hits_tr.begin() + first, x_hits_tr.begin() + last);
-                vector<double> y_batch(y_hits_tr.begin() + first, y_hits_tr.begin() + last);
-                vector<double> z_batch(z_hits_tr.begin() + first, z_hits_tr.begin() + last);
-                vector<double> e_batch(energy_hits.begin() + first, energy_hits.begin() + last);
-                const auto startsmear = std::chrono::steady_clock::now();
-                if (!cloud_smearing3D(x_batch, y_batch, z_batch, e_batch, S3D_x, S3D_y, S3D_z))
-                    return fail("error generating the electron cloud.");
-                dur_smear += std::chrono::steady_clock::now() - startsmear;
-                size_tot += S3D_z.size();
-
-                const auto startcriti = std::chrono::steady_clock::now();
-                for (size_t hit = 0; hit < S3D_z.size(); ++hit) {
-                    const long int xx = floor((S3D_x[hit] - xmin) / xbin_dim);
-                    const long int yy = floor((S3D_y[hit] - ymin) / ybin_dim);
-                    const long int zz = floor((S3D_z[hit] - zmin) / zbin_dim);
-                    // Diffusion tails outside the finite histogram are excluded.
-                    if (xx < 0 || xx >= x_n_bin || yy < 0 || yy >= y_n_bin || zz < 0 || zz >= z_n_bin_MAX)
-                        continue;
-                    const std::uint64_t index = static_cast<std::uint64_t>(zz) * xy_bins + xx * y_n_bin + yy;
-                    if (multiple_slabs) {
-                        buffer[buffered++] = index;
-                        if (buffered == buffer.size() && !flush_buffer())
-                            return fail("cannot write temporary slab storage.");
-                    } else {
-                        hc[index] += 1.0;
-                    }
-                }
-                dur_criti += std::chrono::steady_clock::now() - startcriti;
-            }
-            if (multiple_slabs && (!flush_buffer() || std::fflush(spool.get()) != 0))
-                return fail("cannot flush temporary slab storage.");
-            // Release the last cloud before allocating a dense slab histogram.
-            vector<float>().swap(S3D_x);
-            vector<float>().swap(S3D_y);
-            vector<float>().swap(S3D_z);
-
-            for (long int first_z = 0; first_z < z_n_bin_MAX; first_z += slab_depth) {
-                const long int depth = min(slab_depth, z_n_bin_MAX - first_z);
-                const std::uint64_t first_index = static_cast<std::uint64_t>(first_z) * xy_bins;
-                const std::uint64_t end_index = first_index + depth * xy_bins;
-                if (multiple_slabs) {
-                    const auto startcriti = std::chrono::steady_clock::now();
-                    hc.assign(xy_bins * depth, 0.0);
-                    if (std::fseek(spool.get(), 0, SEEK_SET) != 0)
-                        return fail("cannot rewind temporary slab storage.");
-                    size_t count;
-                    while ((count = std::fread(buffer.data(), sizeof(buffer[0]), buffer.size(), spool.get())) > 0) {
-                        for (size_t i = 0; i < count; ++i) {
-                            const auto index = buffer[i];
-                            if (index >= first_index && index < end_index)
-                                hc[index - first_index] += 1.0;
+                    int WID = config.getInt("WID");
+                    int nparts = (x_hits_tr.size() + WID - 1)/WID;
+                    
+                    //cout<<"DEBUG "<<hc.size()<<","<<hc[0].size()<<","<<hc[0][0].size()<<endl<<flush;
+                    cout<<"Amplifying voxel region z=["<<split_vals[i]<<","<<split_vals[i+1]<<"] "<<i<<"/"<<split_vals.size()-1-1<<endl;
+                    
+                    for(int part = 0; part < nparts; part++) {
+                        cout<<"   part "<<part<<"/"<<nparts<<"..."<<endl;
+                        int hit_tr_idx = part*WID;
+                        int hit_tr_idx_up = min((part+1)*WID,(int)x_hits_tr.size());
+                        S3D_x.clear();
+                        S3D_y.clear();
+                        S3D_z.clear();
+                    
+                        vector<double> x_hits_tr_i(&x_hits_tr[hit_tr_idx], &x_hits_tr[hit_tr_idx_up]);
+                        vector<double> y_hits_tr_i(&y_hits_tr[hit_tr_idx], &y_hits_tr[hit_tr_idx_up]);
+                        vector<double> z_hits_tr_i(&z_hits_tr[hit_tr_idx], &z_hits_tr[hit_tr_idx_up]);
+                        vector<double> energy_hits_i(&energy_hits[hit_tr_idx], &energy_hits[hit_tr_idx_up]);
+                        
+                        //cout<<"Smearing..."<<endl<<flush;
+                        auto startsmear = std::chrono::steady_clock::now();
+                        if(!cloud_smearing3D(x_hits_tr_i, y_hits_tr_i, z_hits_tr_i, energy_hits_i, S3D_x, S3D_y, S3D_z)) {
+                            std::cerr << "Warning: TrackProcessor::computeWithSaturation: skipping this track because of error from TrackProcessor::cloud_smearing3D."<<std::endl;
+                            return false;
                         }
-                    }
-                    if (std::ferror(spool.get())) return fail("cannot read temporary slab storage.");
-                    dur_criti += std::chrono::steady_clock::now() - startcriti;
-                }
+                        auto endsmear = std::chrono::steady_clock::now();
+                        dur_smear=dur_smear+endsmear-startsmear;
+                        size_tot+=S3D_z.size();
 
-                cout << "Amplifying voxel region z=[" << zmin + first_z * zbin_dim
-                     << "," << zmin + (first_z + depth) * zbin_dim << "]" << endl;
-                const auto startampli = std::chrono::steady_clock::now();
-                long int not_empty = 0;
-                // All batches have contributed before the nonlinear GEM3 response.
-                // Z-major traversal keeps both memory access and PMT output order
-                // independent of the number of slabs.
-                for (long int zz = 0; zz < depth; ++zz) {
-                    for (long int xx = 0; xx < x_n_bin; ++xx) {
-                        for (long int yy = 0; yy < y_n_bin; ++yy) {
-                            const double nel = hc[zz * xy_bins + xx * y_n_bin + yy];
-                            if (nel == 0.0) continue;
-                            ++not_empty;
-                            const double n_ph_val = Nph_saturation(nel, optA, optbeta*xy_vox_scale*xy_vox_scale*0.1/zbin_dim);
-                            hout[xx][yy] += n_ph_val;
-                            if (n_ph_val > 0) {
-                                PMTVoxel voxel;
-                                voxel.x = xx * xbin_dim + xmin;
-                                voxel.y = yy * ybin_dim + ymin;
-                                voxel.z = (first_z + zz) * zbin_dim + zmin;
-                                voxel.n_photons = n_ph_val;
-                                pmt_voxels.push_back(voxel);
+                        //cout<<"----- x "<<S3D_x.size()<<endl<<flush;
+                        //cout<<"----- y "<<S3D_y.size()<<endl<<flush;
+                        //cout<<"----- z "<<S3D_z.size()<<endl<<flush;
+                        
+                        //cout<<"Getting the vector to store all indices"<<endl<<flush;
+                        // Vector to store all indices
+                        vector<size_t> allindices(S3D_z.size());
+                        // Fill indices with 0, 1, 2, ..., numbers.size() - 1
+                        iota(allindices.begin(), allindices.end(), 0);
+                        
+                        auto startcriti = std::chrono::steady_clock::now();
+                        //cout<<"Getting the indices where split_vals[i] <= S3D_z < split_vals[i+1]"<<endl<<flush;
+                        // Getting the indices where split_vals[i] <= S3D_z < split_vals[i+1]
+                        vector<size_t> indices;
+                        copy_if(allindices.begin(), allindices.end(), back_inserter(indices), [&](size_t n) {
+                            return ( S3D_z[n] >= split_vals[i] && S3D_z[n] < split_vals[i+1]);
+                        });
+                        
+                        if(indices.size()==0) continue;
+                        
+                        // THIS IS THE COMPUTATIONALLY EXPENSIVE PART
+                        for_each(indices.begin(), indices.end(), [&](int ihit) {
+                            int xx = floor((S3D_x[ihit]- xmin)/ xbin_dim);
+                            int yy = floor((S3D_y[ihit]- ymin)/ ybin_dim);
+                            int zz = floor((S3D_z[ihit]-split_vals[i])/ zbin_dim);
+                            hc[xx][yy][zz] += 1.;
+                        });
+                        auto endcriti = std::chrono::steady_clock::now();
+                        dur_criti=dur_criti+endcriti-startcriti;
+
+                    }
+
+                    long int LL = (x_n_bin)*(y_n_bin)*(z_n_bin);
+                    long int not_empty=0;
+                    auto startampli = std::chrono::steady_clock::now();
+                    
+                    // Applying GEM3 amplification
+                    for(int xx = 0; xx<x_n_bin-1; xx++){
+                        for(int yy=0; yy<y_n_bin-1; yy++) {
+                            for(int zz=0; zz<z_n_bin-1; zz++){
+                                if(hc[xx][yy][zz] != 0.) {
+                                    not_empty++;
+                                    // optbeta is multiplied by factors to normalize on volume chosen
+                                    double n_ph_val = Nph_saturation(hc[xx][yy][zz], optA, optbeta*xy_vox_scale*xy_vox_scale*0.1/zbin_dim);
+
+                                    hout[xx][yy] += n_ph_val;
+                                    
+                                    // --- PMT Simulation Integration ---
+                                    if (n_ph_val > 0) {
+                                        PMTVoxel voxel;
+                                        // Convert bin indices back to physical coordinates (mm)
+                                        voxel.x = (xx * xbin_dim) + xmin;
+                                        voxel.y = (yy * ybin_dim) + ymin;
+                                        voxel.z = (zz * zbin_dim) + split_vals[i];
+                                        
+                                        voxel.n_photons = n_ph_val;
+                                        pmt_voxels.push_back(voxel);
+                                    }   
+                                }
                             }
                         }
                     }
+                    auto endampli = std::chrono::steady_clock::now();
+                    dur_ampli=dur_ampli+endampli-startampli;
+                    cout<<"Sparse-ness of voxel region: "<< not_empty * 100./LL<<" %"<<endl;
+
+
+                } else {
+                    auto startsmear = std::chrono::steady_clock::now();
+                    if(!cloud_smearing3D(x_hits_tr, y_hits_tr, z_hits_tr, energy_hits, S3D_x, S3D_y, S3D_z)) {
+                        std::cerr << "Warning: TrackProcessor::computeWithSaturation: skipping this track because of error from TrackProcessor::cloud_smearing3D."<<std::endl;
+                        return false;
+                    }
+                    auto endsmear = std::chrono::steady_clock::now();
+                    dur_smear=dur_smear+endsmear-startsmear;
+                    size_tot+=S3D_z.size();
+
+                    // Vector to store all indices
+                    vector<size_t> allindices(S3D_z.size());
+                    // Fill indices with 0, 1, 2, ..., numbers.size() - 1
+                    iota(allindices.begin(), allindices.end(), 0);
+                    
+                    auto startcriti = std::chrono::steady_clock::now(); 
+                    // Getting the indices where split_vals[i] <= S3D_z < split_vals[i+1]
+                    vector<size_t> indices;
+                    copy_if(allindices.begin(), allindices.end(), back_inserter(indices), [&](size_t n) {
+                        return ( S3D_z[n] >= split_vals[i] && S3D_z[n] < split_vals[i+1]);
+                    });
+                    
+                    if(indices.size()==0) continue;
+                    
+                    //cout<<"DEBUG "<<hc.size()<<","<<hc[0].size()<<","<<hc[0][0].size()<<endl<<flush;
+                    cout<<"Amplifying voxel region z=["<<split_vals[i]<<","<<split_vals[i+1]<<"] "<<i<<"/"<<split_vals.size()-1-1<<endl;
+                    
+                    // THIS IS THE COMPUTATIONALLY EXPENSIVE PART
+                    for_each(indices.begin(), indices.end(), [&](int ihit) {
+                        int xx = floor((S3D_x[ihit]- xmin)/ xbin_dim);
+                        int yy = floor((S3D_y[ihit]- ymin)/ ybin_dim);
+                        int zz = floor((S3D_z[ihit]-split_vals[i])/ zbin_dim);
+                        hc[xx][yy][zz] += 1.;
+                    });
+                    auto endcriti = std::chrono::steady_clock::now();
+                    dur_criti=dur_criti+endcriti-startcriti;
+                    
+
+                    long int LL = (x_n_bin)*(y_n_bin)*(z_n_bin);
+                    long int not_empty=0;
+                    
+                    auto startampli = std::chrono::steady_clock::now();
+                    // Applying GEM3 amplification
+                    
+                    
+                    
+                    for(int xx = 0; xx<x_n_bin-1; xx++){
+                        for(int yy=0; yy<y_n_bin-1; yy++) {
+                            for(int zz=0; zz<z_n_bin-1; zz++){
+                                if(hc[xx][yy][zz] != 0.) {
+                                    not_empty++;
+                                    // optbeta is multiplied by factors to normalize on volume chosen
+                                    double n_ph_val = Nph_saturation(hc[xx][yy][zz], optA, optbeta*xy_vox_scale*xy_vox_scale*0.1/zbin_dim);
+
+                                    hout[xx][yy] += n_ph_val;
+
+                                    // --- PMT Simulation Integration ---
+                                    if (n_ph_val > 0) {
+                                        PMTVoxel voxel;
+                                        // Convert bin indices back to physical coordinates (mm)
+                                        voxel.x = (xx * xbin_dim) + xmin;
+                                        voxel.y = (yy * ybin_dim) + ymin;
+                                        voxel.z = (zz * zbin_dim) + split_vals[i];
+                                        
+                                        voxel.n_photons = n_ph_val;
+                                        pmt_voxels.push_back(voxel);
+                                    } 
+                                }
+                            }
+                        }
+                    }
+                    auto endampli = std::chrono::steady_clock::now();
+                    dur_ampli=dur_ampli+endampli-startampli;
+                    cout<<"Sparse-ness of voxel region: "<< not_empty * 100./LL<<" %"<<endl;
                 }
-                dur_ampli += std::chrono::steady_clock::now() - startampli;
-                cout << "Sparse-ness of voxel region: " << not_empty * 100. / hc.size() << " %" << endl;
             }
+            
         }
 
         cout<<"size = "<<size_tot<<endl;
@@ -536,10 +605,6 @@ bool TrackProcessor::cloud_smearing3D(const vector<double>& x_hits_tr,
                                       vector<float>& S3D_y,
                                       vector<float>& S3D_z) {
 
-    S3D_x.clear();
-    S3D_y.clear();
-    S3D_z.clear();
-
     vector<double> nel = NelGEM2(energy_hits, z_hits_tr);
     if (nel.empty()) {
         std::cerr << "Warning: TrackProcessor::cloud_smearing3D: skipping this track because of empty result from TrackProcessor::NelGEM2."<<std::endl;
@@ -632,7 +697,7 @@ void TrackProcessor::smear_parallel(const vector<double>& x_axis_hit,const vecto
     // Run the default parallelism
     tbb::task_arena arena(num_threads);
     arena.execute([&]{
-        parallel_for(tbb::blocked_range<size_t>(0, indices.size(),max<size_t>(1, indices.size()/num_threads)),
+        parallel_for(tbb::blocked_range<size_t>(0, indices.size(),indices.size()/num_threads),
             [&] (auto &range) {
             vector<float> x_paralvec,y_paralvec,z_paralvec;
             TRandom3 paralrandom;
@@ -708,7 +773,7 @@ vector<double> TrackProcessor::NelGEM2(const vector<double>& energyDep, const ve
         return gRandom->Poisson(a);
     });
 
-    N_primaries_reaching_GEMs += std::accumulate(n_ioniz_el.begin(), n_ioniz_el.end(), 0.0);
+    N_primaries_reaching_GEMs = std::accumulate(n_ioniz_el.begin(), n_ioniz_el.end(), 0.0);
     std::cout << "Number of primaries reaching GEMs: " << N_primaries_reaching_GEMs << std::endl;
     
     
